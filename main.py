@@ -2,8 +2,10 @@ from agents import Agent, Runner
 import asyncio
 import random
 import os
+from openai import OpenAI
+client = OpenAI()
 
-from db import execute_query
+from db import execute_query, execute_query_non_agent
 
 # agent = Agent(
 #     name="Customer Service Bot",
@@ -22,7 +24,6 @@ import json
 from typing_extensions import TypedDict, Any
 
 from agents import Agent, FunctionTool, RunContextWrapper, function_tool
-
 
 class Location(TypedDict):
     lat: float
@@ -63,13 +64,29 @@ def list_files(directory: str) -> list[str]:
 def write_file(path: str, content: str) -> None:
     with open(path, "w") as file:
         file.write(content)
+        
+        
+@function_tool
+def save_document(title: str, content: str, metadata: str) -> str:
+    response = client.embeddings.create(
+        input=content,
+        model="text-embedding-3-small"
+    )
+    embedding = response.data[0].embedding
+    embedding = json.dumps(embedding)
+    ## save it to the database
+    query = f"INSERT INTO documents (title, content, embeddings, metadata) VALUES (%s, %s, %s, %s)"
+    
+    execute_query_non_agent(query,values=(title, content, embedding, metadata))
+    return "Document saved successfully."
 
 
 agent = Agent(
     name="Assistant",
-    tools=[read_file, list_files, write_file, execute_query],
+    tools=[read_file, list_files, write_file, execute_query, save_document],
     instructions="""
 You are a helpful assistant. You can read files, list files, and write files, and connect to a database.
+You can save documents to the database, which will be stored in a table called documents, along with the embeddings of the document.
 If asked to respond to an email, check the database's links table for details you might need.
 """
 )
@@ -79,10 +96,14 @@ async def main():
     # result = await Runner.run(agent, "Can you connect to the database, there is a table called links with the columns id, name, and url, please insert a row with the name 'gather town' and the url 'https://gather.town/app/xyz123'. Please execute this as at least two separate queries. If you encounter troubles, you can read the db.py file to see how the connection is made, and potentially debug and rewrite the tool so that it works.")
     # result = await Runner.run(agent, "Can you add a description field to the links table for additional context?")
     # result = await Runner.run(agent, "Can you add 'this is the link to class if students ask' for the gather town link in the links table?")
-    result = await Runner.run(agent, "Can you respond to this user's email: 'Hi, I was wondering if you could send me the link to class? Thanks!'")
+    # result = await Runner.run(agent, "Can you respond to this user's email: 'Hi, I was wondering if you could send me the link to class? Thanks!'")
+    # result = await Runner.run(agent, "Please create a table called documents, with columns id, title, content, embeddings, and metadata. The embeddings column should be a vector(1536), and the metadata column should be a jsonb object.")
+    result = await Runner.run(agent, "Please save the /Users/annhoward/intro_to_agents_spr_2025/an_interesting_document.txt file to the documents table, with the title 'An Interesting Document' and set metadata to null.")
+    
     print(result.final_output)
     
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
