@@ -16,6 +16,14 @@ def execute_query(query: str) -> str:
         connection = psycopg2.connect(os.getenv("DATABASE_URL"))
         cursor = connection.cursor()
         
+        ## don't allow delete- if the query is a delete, raise an error
+        if query.strip().lower().startswith('delete'):
+            raise ValueError("Delete operations are not allowed.")
+        
+        ## don't allow drop- if the query is a drop, raise an error
+        if query.strip().lower().startswith('drop'):
+            raise ValueError("Drop operations are not allowed.")
+        
         # Execute the query
         cursor.execute(query)
         connection.commit()
