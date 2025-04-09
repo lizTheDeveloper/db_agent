@@ -65,7 +65,7 @@ def execute_query_non_agent(query: str, values: str) -> str:
         
         # Execute the query
         print(query, values)
-        cursor.execute(query, values)
+        cursor.execute(query, (values,values))
         connection.commit()
         
         # Log and return results if SELECT query

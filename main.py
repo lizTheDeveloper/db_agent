@@ -80,10 +80,27 @@ def save_document(title: str, content: str, metadata: str) -> str:
     execute_query_non_agent(query,values=(title, content, embedding, metadata))
     return "Document saved successfully."
 
+@function_tool
+def embeddings_query_database(query: str) -> str:
+    print(query)
+    response = client.embeddings.create(
+        input=query,
+        model="text-embedding-3-small"
+    )
+    embedding = response.data[0].embedding
+    embedding = json.dumps(embedding)
+    
+    ## query the database using the embeddings
+    sql_query = f"SELECT *, (embeddings <-> %s) as distance FROM documents ORDER BY embeddings <-> %s LIMIT 1"
+    results = execute_query_non_agent(sql_query, embedding)
+    print(results)
+    return results
+    
+
 
 agent = Agent(
     name="Assistant",
-    tools=[read_file, list_files, write_file, execute_query, save_document],
+    tools=[read_file, list_files, write_file, execute_query, save_document, embeddings_query_database],
     instructions="""
 You are a helpful assistant. You can read files, list files, and write files, and connect to a database.
 You can save documents to the database, which will be stored in a table called documents, along with the embeddings of the document.
@@ -98,7 +115,8 @@ async def main():
     # result = await Runner.run(agent, "Can you add 'this is the link to class if students ask' for the gather town link in the links table?")
     # result = await Runner.run(agent, "Can you respond to this user's email: 'Hi, I was wondering if you could send me the link to class? Thanks!'")
     # result = await Runner.run(agent, "Please create a table called documents, with columns id, title, content, embeddings, and metadata. The embeddings column should be a vector(1536), and the metadata column should be a jsonb object.")
-    result = await Runner.run(agent, "Please save the /Users/annhoward/intro_to_agents_spr_2025/an_interesting_document.txt file to the documents table, with the title 'An Interesting Document' and set metadata to null.")
+    # result = await Runner.run(agent, "Please save the /Users/annhoward/intro_to_agents_spr_2025/doc2.txt and doc3.txt files to the documents table, with an appropriate title and set metadata to null.")
+    result = await Runner.run(agent, "Please query the database (using embeddings query) using the for information the Governor or Legislature of Wisconsin. You might need to make multiple queries. Please explain the historical relationship of the govenor's office and the legislature in Wisconsin. Use the tool, not what you know.")
     
     print(result.final_output)
     
